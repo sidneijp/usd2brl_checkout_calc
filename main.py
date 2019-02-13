@@ -66,21 +66,21 @@ class InterUSD2BRL(object):
 
 @click.group()
 def cli():
-    click.echo('USD/BRL Calc')
+    pass
 
 
 @cli.command()
 @click.argument('value', type=click.FLOAT)
 def inter(value):
     calc = InterUSD2BRL()
-    click.echo(calc.pretty(value))
+    click.echo(calc.convert(value))
 
 
 @cli.command()
 @click.argument('value', type=click.FLOAT)
 def nubank(value):
     calc = NuBankUSD2BRL()
-    click.echo(calc.pretty(value))
+    click.echo(calc.convert(value))
 
 
 if __name__ == '__main__':
