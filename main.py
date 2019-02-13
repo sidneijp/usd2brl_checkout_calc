@@ -1,4 +1,5 @@
 import bs4
+import click
 from datetime import datetime
 import requests
 
@@ -26,7 +27,7 @@ class PtaxClient(object):
     def fetch(self):
         resp = requests.post(self.url, data=self.payload())
         if resp.status_code == 200:
-            etree = bs4.BeautifulSoup(resp.text)
+            etree = bs4.BeautifulSoup(resp.text, features='html.parser')
             ptax_line = etree.select('.tabela tbody tr')[-1].select('td')
             self.ptax_compra = float(ptax_line[2].get_text().replace(',', '.'))
             self.ptax_venda = float(ptax_line[3].get_text().replace(',', '.'))
@@ -61,3 +62,26 @@ class InterUSD2BRL(object):
 
     def pretty(self, value):
         return 'R${0:,.2f}'.format(self.convert(value))
+
+
+@click.group()
+def cli():
+    click.echo('USD/BRL Calc')
+
+
+@cli.command()
+@click.argument('value', type=click.FLOAT)
+def inter(value):
+    calc = InterUSD2BRL()
+    click.echo(calc.pretty(value))
+
+
+@cli.command()
+@click.argument('value', type=click.FLOAT)
+def nubank(value):
+    calc = NuBankUSD2BRL()
+    click.echo(calc.pretty(value))
+
+
+if __name__ == '__main__':
+    cli()
