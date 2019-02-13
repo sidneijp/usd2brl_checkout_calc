@@ -1,0 +1,63 @@
+import bs4
+from datetime import datetime
+import requests
+
+IOF = 6.38
+
+
+class PtaxClient(object):
+    url = 'https://ptax.bcb.gov.br/ptax_internet/consultaBoletim.do?method=consultarBoletim'
+    dollar_eua_id = 61
+    boletim_data_especifica = 3
+
+    def __init__(self):
+        self.ptax = None
+        self.ptax_compra = None
+        self.ptax_venda = None
+
+    def payload(self, date=None):
+        start_date = date or datetime.today().strftime('%d/%m/%Y')
+        return {
+            'DATAINI': start_date,
+            'ChkMoeda': self.dollar_eua_id,
+            'RadOpcao': self.boletim_data_especifica
+        }
+
+    def fetch(self):
+        resp = requests.post(self.url, data=self.payload())
+        if resp.status_code == 200:
+            etree = bs4.BeautifulSoup(resp.text)
+            ptax_line = etree.select('.tabela tbody tr')[-1].select('td')
+            self.ptax_compra = float(ptax_line[2].get_text().replace(',', '.'))
+            self.ptax_venda = float(ptax_line[3].get_text().replace(',', '.'))
+            self.ptax = (self.ptax_venda + self.ptax_compra) / 2
+
+
+class NuBankUSD2BRL(object):
+    def __init__(self, iof=IOF):
+        self.ptax_client = PtaxClient()
+        self.iof = (1 + iof/100.)
+        self._spread = (1 + 4./100.)
+
+    def convert(self, value):
+        self.ptax_client.fetch()
+        self.ptax = self.ptax_client.ptax_venda
+        return round(value * self._spread * self.ptax * self.iof, 2)
+
+    def pretty(self, value):
+        return 'R${0:,.2f}'.format(self.convert(value))
+
+
+class InterUSD2BRL(object):
+    def __init__(self, iof=IOF):
+        self.ptax_client = PtaxClient()
+        self.iof = (1 + iof/100.)
+        self._spread = (1 + 1./100.)
+
+    def convert(self, value):
+        self.ptax_client.fetch()
+        self.ptax = self.ptax_client.ptax
+        return round(value * self._spread * self.ptax * self.iof, 2)
+
+    def pretty(self, value):
+        return 'R${0:,.2f}'.format(self.convert(value))
