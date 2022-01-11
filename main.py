@@ -7,6 +7,10 @@ IOF = 6.38
 
 
 class PtaxClient(object):
+    """
+    Referência Ptax: https://www.bcb.gov.br/conteudo/relatorioinflacao/EstudosEspeciais/EE042_A_taxa_de_cambio_de_referencia_Ptax.pdf
+    """
+ 
     url = 'https://ptax.bcb.gov.br/ptax_internet/consultaBoletim.do?method=consultarBoletim'
     dollar_eua_id = 61
     boletim_data_especifica = 3
@@ -35,6 +39,9 @@ class PtaxClient(object):
 
 
 class NuBankUSD2BRL(object):
+    """
+    Referência NuBank: https://blog.nubank.com.br/nubank-trava-dolar-no-dia-do-gasto/
+    """
     def __init__(self, iof=IOF):
         self.ptax_client = PtaxClient()
         self.iof = (1 + iof/100.)
@@ -50,6 +57,9 @@ class NuBankUSD2BRL(object):
 
 
 class InterUSD2BRL(object):
+    """
+    Referência Banco Inter: https://ajuda.bancointer.com.br/pt-BR/articles/1520202-como-e-composta-a-taxa-cobrada-em-compras-internacionais
+    """
     def __init__(self, iof=IOF):
         self.ptax_client = PtaxClient()
         self.iof = (1 + iof/100.)
