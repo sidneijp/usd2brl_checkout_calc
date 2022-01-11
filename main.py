@@ -3,7 +3,9 @@ import click
 from datetime import datetime
 import decimal
 from decimal import Decimal
-import requests
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
+
 
 IOF = Decimal('6.38')
 
@@ -21,7 +23,7 @@ class PtaxClient(object):
     """
     Referência Ptax: https://www.bcb.gov.br/conteudo/relatorioinflacao/EstudosEspeciais/EE042_A_taxa_de_cambio_de_referencia_Ptax.pdf
     """
- 
+
     url = 'https://ptax.bcb.gov.br/ptax_internet/consultaBoletim.do?method=consultarBoletim'
     dollar_eua_id = 61
     boletim_data_especifica = 3
@@ -40,9 +42,10 @@ class PtaxClient(object):
         }
 
     def fetch(self):
-        resp = requests.post(self.url, data=self.payload())
-        if resp.status_code == 200:
-            etree = bs4.BeautifulSoup(resp.text, features='html.parser')
+        request = Request(self.url, urlencode(self.payload()).encode())
+        resp = urlopen(request)
+        if resp.status == 200:
+            etree = bs4.BeautifulSoup(resp.read(), features='html.parser')
             ptax_line = etree.select('.tabela tbody tr')[-1].select('td')
             self.ptax_compra = Decimal(ptax_line[2].get_text().replace(',', '.'))
             self.ptax_venda = Decimal(ptax_line[3].get_text().replace(',', '.'))
@@ -57,7 +60,7 @@ class USD2BRLConverter(object):
         brl_value = usd_value * self._spread * self.ptax * self.iof
         rounded_value = custom_round(brl_value)
         return rounded_value
-    
+
 
 class NuBankUSD2BRL(USD2BRLConverter):
     """
