@@ -1,8 +1,13 @@
 ## Run:
-`python main.py nubank <value>`
+`python main.py <cc-issuer> <value>`
+
+cc-issuer: (nubank | inter) name of the credit card issuer (to calculate fees)
+value: decimal value in USD Dollars
+
+The result is a decimal value in Brasilian Reais (BRL/R$).
 
 ## Examples:
-```i
+```
 $ python main.py nubank 10.0
 43.30
 ```
