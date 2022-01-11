@@ -1,9 +1,20 @@
 import bs4
 import click
 from datetime import datetime
+import decimal
+from decimal import Decimal
 import requests
 
-IOF = 6.38
+IOF = Decimal('6.38')
+
+
+def print_money(value, moeda="R$", decimal_places=2):
+    return ('{moeda}{value:,.%sf}' % decimal_places).format(value=value, moeda=moeda)
+
+
+def custom_round(value, decimal_places=2, rounding=decimal.ROUND_DOWN):
+    exp = Decimal(10)**-decimal_places
+    return value.quantize(exp, rounding=decimal.ROUND_DOWN)
 
 
 class PtaxClient(object):
@@ -33,45 +44,39 @@ class PtaxClient(object):
         if resp.status_code == 200:
             etree = bs4.BeautifulSoup(resp.text, features='html.parser')
             ptax_line = etree.select('.tabela tbody tr')[-1].select('td')
-            self.ptax_compra = float(ptax_line[2].get_text().replace(',', '.'))
-            self.ptax_venda = float(ptax_line[3].get_text().replace(',', '.'))
+            self.ptax_compra = Decimal(ptax_line[2].get_text().replace(',', '.'))
+            self.ptax_venda = Decimal(ptax_line[3].get_text().replace(',', '.'))
             self.ptax = (self.ptax_venda + self.ptax_compra) / 2
 
 
-class NuBankUSD2BRL(object):
+class USD2BRLConverter(object):
+    def convert(self, usd_value):
+        usd_value = Decimal(usd_value)
+        self.ptax_client.fetch()
+        self.ptax = self.ptax_client.ptax_venda
+        brl_value = usd_value * self._spread * self.ptax * self.iof
+        rounded_value = custom_round(brl_value)
+        return rounded_value
+    
+
+class NuBankUSD2BRL(USD2BRLConverter):
     """
     Referência NuBank: https://blog.nubank.com.br/nubank-trava-dolar-no-dia-do-gasto/
     """
     def __init__(self, iof=IOF):
         self.ptax_client = PtaxClient()
-        self.iof = (1 + iof/100.)
-        self._spread = (1 + 4./100.)
-
-    def convert(self, value):
-        self.ptax_client.fetch()
-        self.ptax = self.ptax_client.ptax_venda
-        return round(value * self._spread * self.ptax * self.iof, 2)
-
-    def pretty(self, value):
-        return 'R${0:,.2f}'.format(self.convert(value))
+        self.iof = (1 + iof/100)
+        self._spread = (1 + Decimal('4')/100)
 
 
-class InterUSD2BRL(object):
+class InterUSD2BRL(USD2BRLConverter):
     """
     Referência Banco Inter: https://ajuda.bancointer.com.br/pt-BR/articles/1520202-como-e-composta-a-taxa-cobrada-em-compras-internacionais
     """
     def __init__(self, iof=IOF):
         self.ptax_client = PtaxClient()
-        self.iof = (1 + iof/100.)
-        self._spread = (1 + 1./100.)
-
-    def convert(self, value):
-        self.ptax_client.fetch()
-        self.ptax = self.ptax_client.ptax
-        return round(value * self._spread * self.ptax * self.iof, 2)
-
-    def pretty(self, value):
-        return 'R${0:,.2f}'.format(self.convert(value))
+        self.iof = (1 + iof/100)
+        self._spread = (1 + Decimal('1')/100)
 
 
 @click.group()
@@ -83,14 +88,14 @@ def cli():
 @click.argument('value', type=click.FLOAT)
 def inter(value):
     calc = InterUSD2BRL()
-    click.echo(calc.convert(value))
+    click.echo(print_money(calc.convert(value)))
 
 
 @cli.command()
 @click.argument('value', type=click.FLOAT)
 def nubank(value):
     calc = NuBankUSD2BRL()
-    click.echo(calc.convert(value))
+    click.echo(print_money(calc.convert(value)))
 
 
 if __name__ == '__main__':
