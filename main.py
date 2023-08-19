@@ -1,14 +1,49 @@
 import bs4
 import click
-from datetime import datetime
+from datetime import date, datetime, timedelta
 import decimal
 from decimal import Decimal
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+import csv
 
 
-IOF = Decimal('6.38')
+IOF = Decimal('5.38')
 
+
+class BusinessDaysRepository(object):
+    def __init__(self):
+        self.holidays = {}
+
+    def load(self):
+        with open("feriados_nacionais.csv") as f:
+            reader = csv.reader(f)
+            header = next(reader)
+            for row in reader:
+                holiday_date_string = row[0]
+                holiday_name = row[2]
+                holiday_date = datetime.strptime(holiday_date_string, "%m/%d/%Y")
+                self.holidays[holiday_date] = self.holidays.get(holiday_date, []) + [holiday_name]
+
+    def get_previous_business_day(self, date, include_itself=False):
+        if not include_itself:
+            date = date - timedelta(days=1)
+        while (not self.is_business_day(date)):
+            date = date - timedelta(days=1)
+        return date
+
+    def is_business_day(self, date):
+        return self.is_weekday(date) and not self.is_holiday(date)
+
+    def is_weekday(self, date):
+        return date.weekday() < 5
+
+    def is_holiday(self, date):
+        return date in self.holidays
+
+
+BusinessDays = BusinessDaysRepository()
+BusinessDays.load()
 
 def print_money(value, moeda="R$", decimal_places=2):
     return ('{moeda}{value:,.%sf}' % decimal_places).format(value=value, moeda=moeda)
@@ -17,6 +52,7 @@ def print_money(value, moeda="R$", decimal_places=2):
 def custom_round(value, decimal_places=2, rounding=decimal.ROUND_DOWN):
     exp = Decimal(10)**-decimal_places
     return value.quantize(exp, rounding=decimal.ROUND_DOWN)
+
 
 
 class PtaxClient(object):
@@ -34,18 +70,25 @@ class PtaxClient(object):
         self.ptax_venda = None
 
     def payload(self, date=None):
-        start_date = date or datetime.today().strftime('%d/%m/%Y')
+        start_date = date or datetime.today()
+        start_date = self.get_latest_available_date(start_date)
+        start_date = start_date.strftime('%d/%m/%Y')
         return {
             'DATAINI': start_date,
+            'DATAFIM': "",
             'ChkMoeda': self.dollar_eua_id,
             'RadOpcao': self.boletim_data_especifica
         }
+
+    def get_latest_available_date(self, date):
+        return BusinessDays.get_previous_business_day(date, include_itself=True)
 
     def fetch(self):
         request = Request(self.url, urlencode(self.payload()).encode())
         resp = urlopen(request)
         if resp.status == 200:
-            etree = bs4.BeautifulSoup(resp.read(), features='html.parser')
+            content = resp.read()
+            etree = bs4.BeautifulSoup(content, features='html.parser')
             ptax_line = etree.select('.tabela tbody tr')[-1].select('td')
             self.ptax_compra = Decimal(ptax_line[2].get_text().replace(',', '.'))
             self.ptax_venda = Decimal(ptax_line[3].get_text().replace(',', '.'))
